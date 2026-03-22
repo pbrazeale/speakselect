@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/piper-speak"
+readonly DEFAULT_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/piper"
+readonly DEFAULT_CONFIG_FILE="${DEFAULT_CONFIG_DIR}/config.env"
+
+CONFIG_FILE="${PIPER_SPEAK_CONFIG:-$DEFAULT_CONFIG_FILE}"
+PIPER_DATA_DIR="${PIPER_DATA_DIR:-$DEFAULT_DATA_DIR}"
+PIPER_VOICE="${PIPER_VOICE:-en_GB-southern_english_female-low}"
+PIPER_LENGTH_SCALE="${PIPER_LENGTH_SCALE:-1.0}"
+PIPER_PYTHON="${PIPER_PYTHON:-python3}"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  speak "text to read aloud"
+  printf 'text\n' | speak
+  speak --list-voices
+  speak --set-voice VOICE
+  speak --faster
+  speak --slower
+  speak --print-config
+
+Options:
+  --list-voices       List available Piper voices
+  --set-voice VOICE   Persist a new voice into the config file
+  --faster            Persist a 0.1 faster speed step (lower length scale)
+  --slower            Persist a 0.1 slower speed step (higher length scale)
+  --print-config      Print the resolved runtime configuration
+  --speed SCALE       Override PIPER_LENGTH_SCALE for this run only
+  --config FILE       Read configuration from a different env file
+  -h, --help          Show this help text
+EOF
+}
+
+log() {
+    printf '%s\n' "$*" >&2
+}
+
+die() {
+    log "Error: $*"
+    exit 1
+}
+
+load_config() {
+    if [ -f "$CONFIG_FILE" ]; then
+        # shellcheck disable=SC1090
+        source "$CONFIG_FILE"
+    fi
+}
+
+write_config() {
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    cat >"$CONFIG_FILE" <<EOF
+PIPER_DATA_DIR="$PIPER_DATA_DIR"
+PIPER_VOICE="$PIPER_VOICE"
+PIPER_LENGTH_SCALE="$PIPER_LENGTH_SCALE"
+PIPER_PYTHON="$PIPER_PYTHON"
+EOF
+}
+
+require_command() {
+    local command_name="$1"
+    local error_message="$2"
+
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+        die "$error_message"
+    fi
+}
+
+require_piper_module() {
+    if ! "$PIPER_PYTHON" -c 'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("piper") else 1)' >/dev/null 2>&1; then
+        die "Piper is not installed for ${PIPER_PYTHON}. Run ./install.sh or '${PIPER_PYTHON} -m pip install piper-tts pathvalidate'."
+    fi
+}
+
+print_config() {
+    local model_file="${PIPER_DATA_DIR}/${PIPER_VOICE}.onnx"
+
+    printf 'CONFIG_FILE=%s\n' "$CONFIG_FILE"
+    printf 'PIPER_DATA_DIR=%s\n' "$PIPER_DATA_DIR"
+    printf 'PIPER_VOICE=%s\n' "$PIPER_VOICE"
+    printf 'PIPER_LENGTH_SCALE=%s\n' "$PIPER_LENGTH_SCALE"
+    printf 'PIPER_PYTHON=%s\n' "$PIPER_PYTHON"
+    printf 'MODEL_FILE=%s\n' "$model_file"
+}
+
+list_voices() {
+    require_command "$PIPER_PYTHON" "Python interpreter '${PIPER_PYTHON}' was not found."
+    require_piper_module
+    exec "$PIPER_PYTHON" -m piper.download_voices
+}
+
+set_voice() {
+    local new_voice="$1"
+
+    if [ -z "$new_voice" ]; then
+        die "--set-voice requires a voice name."
+    fi
+
+    PIPER_VOICE="$new_voice"
+    write_config
+    printf 'Updated PIPER_VOICE in %s\n' "$CONFIG_FILE"
+}
+
+adjust_speed() {
+    local direction="$1"
+    local new_speed=""
+
+    new_speed="$(
+        awk -v current="$PIPER_LENGTH_SCALE" -v direction="$direction" '
+            BEGIN {
+                value = current + 0.0
+                step = 0.1
+
+                if (direction == "faster") {
+                    value -= step
+                    if (value < step) {
+                        value = step
+                    }
+                } else if (direction == "slower") {
+                    value += step
+                } else {
+                    exit 1
+                }
+
+                printf "%.1f\n", value
+            }
+        '
+    )" || die "Failed to adjust PIPER_LENGTH_SCALE."
+
+    PIPER_LENGTH_SCALE="$new_speed"
+    write_config
+    printf 'Updated PIPER_LENGTH_SCALE to %s in %s\n' "$PIPER_LENGTH_SCALE" "$CONFIG_FILE"
+}
+
+trimmed_text() {
+    local raw_text="$1"
+    printf '%s' "${raw_text//[$'\t\r\n ']/}"
+}
+
+main() {
+    local mode="speak"
+    local set_voice_value=""
+    local runtime_speed=""
+    local text=""
+    local wav_file=""
+    local cleaned_text=""
+    local model_file=""
+    local model_config_file=""
+
+    load_config
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --list-voices)
+                mode="list-voices"
+                shift
+                ;;
+            --set-voice)
+                mode="set-voice"
+                [ "$#" -ge 2 ] || die "--set-voice requires a voice name."
+                set_voice_value="$2"
+                shift 2
+                ;;
+            --faster)
+                mode="faster"
+                shift
+                ;;
+            --slower)
+                mode="slower"
+                shift
+                ;;
+            --print-config)
+                mode="print-config"
+                shift
+                ;;
+            --speed)
+                [ "$#" -ge 2 ] || die "--speed requires a numeric value."
+                runtime_speed="$2"
+                shift 2
+                ;;
+            --config)
+                [ "$#" -ge 2 ] || die "--config requires a file path."
+                CONFIG_FILE="$2"
+                load_config
+                shift 2
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                die "Unknown option: $1"
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    if [ -n "$runtime_speed" ]; then
+        PIPER_LENGTH_SCALE="$runtime_speed"
+    fi
+
+    case "$mode" in
+        list-voices)
+            list_voices
+            ;;
+        set-voice)
+            set_voice "$set_voice_value"
+            exit 0
+            ;;
+        faster)
+            adjust_speed "faster"
+            exit 0
+            ;;
+        slower)
+            adjust_speed "slower"
+            exit 0
+            ;;
+        print-config)
+            print_config
+            exit 0
+            ;;
+    esac
+
+    if [ "$#" -gt 0 ]; then
+        text="$*"
+    elif [ ! -t 0 ]; then
+        text="$(cat)"
+    else
+        usage >&2
+        exit 1
+    fi
+
+    cleaned_text="$(trimmed_text "$text")"
+    [ -n "$cleaned_text" ] || die "No text was provided."
+
+    require_command "$PIPER_PYTHON" "Python interpreter '${PIPER_PYTHON}' was not found."
+    require_piper_module
+    require_command ffplay "ffplay is required. Install ffmpeg and try again."
+
+    model_file="${PIPER_DATA_DIR}/${PIPER_VOICE}.onnx"
+    model_config_file="${model_file}.json"
+
+    [ -f "$model_file" ] || die "Voice model not found at ${model_file}. Run './install.sh --voice ${PIPER_VOICE}' or 'speak --list-voices'."
+    [ -f "$model_config_file" ] || die "Voice config not found at ${model_config_file}. Re-download the voice with './install.sh --voice ${PIPER_VOICE}'."
+
+    wav_file="$(mktemp "${TMPDIR:-/tmp}/piper-speak.XXXXXX.wav")"
+    trap 'rm -f "$wav_file"' EXIT
+
+    if ! "$PIPER_PYTHON" -m piper \
+        --data-dir "$PIPER_DATA_DIR" \
+        -m "$model_file" \
+        -f "$wav_file" \
+        --length-scale "$PIPER_LENGTH_SCALE" \
+        -- "$text"; then
+        die "Piper synthesis failed."
+    fi
+
+    if ! ffplay -nodisp -autoexit -hide_banner -loglevel error "$wav_file" >/dev/null 2>&1; then
+        die "ffplay failed to play ${wav_file}. Check your audio output and ffmpeg installation."
+    fi
+}
+
+main "$@"
