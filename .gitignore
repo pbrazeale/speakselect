@@ -1,0 +1,13 @@
+todo.md
+*.swp
+*.swo
+*.tmp
+*.wav
+nohup.out
+.DS_Store
+.idea/
+.vscode/
+.venv/
+__pycache__/
+*.pyc
+.envrc
