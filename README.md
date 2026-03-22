@@ -56,7 +56,7 @@ It then downloads a voice with Piper's documented downloader.
 ## Quick Install
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/pbrazeale/speakselect.git
 cd speakselect
 chmod +x install.sh
 ./install.sh

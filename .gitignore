@@ -12,3 +12,4 @@ __pycache__/
 *.pyc
 .envrc
 test.md
+Dockerfile.ubuntu-latest
