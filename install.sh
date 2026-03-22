@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly REPO_DIR
 readonly EXAMPLE_CONFIG="${REPO_DIR}/config/piper-speak.env.example"
 
 INSTALL_BIN_DIR="${HOME}/.local/bin"
