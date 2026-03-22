@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly DEFAULT_SPEAK_BIN="${SCRIPT_DIR}/speak"
+readonly DEFAULT_DETECT_BIN="${SCRIPT_DIR}/detect-selection.sh"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  speak-selection
+  speak-selection --debug
+
+Options:
+  --debug     Print the captured text and run in the foreground
+  -h, --help  Show this help text
+EOF
+}
+
+die() {
+    printf 'Error: %s\n' "$*" >&2
+    exit 1
+}
+
+find_speak_bin() {
+    if [ -x "$DEFAULT_SPEAK_BIN" ]; then
+        printf '%s\n' "$DEFAULT_SPEAK_BIN"
+        return 0
+    fi
+
+    if command -v speak >/dev/null 2>&1; then
+        command -v speak
+        return 0
+    fi
+
+    return 1
+}
+
+find_detect_bin() {
+    if [ -x "$DEFAULT_DETECT_BIN" ]; then
+        printf '%s\n' "$DEFAULT_DETECT_BIN"
+        return 0
+    fi
+
+    if command -v detect-selection.sh >/dev/null 2>&1; then
+        command -v detect-selection.sh
+        return 0
+    fi
+
+    return 1
+}
+
+main() {
+    local debug_mode=0
+    local speak_bin=""
+    local detect_bin=""
+    local selected_text=""
+    local detect_args=()
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --debug)
+                debug_mode=1
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                die "Unknown option: $1"
+                ;;
+        esac
+    done
+
+    speak_bin="$(find_speak_bin)" || die "Unable to find the installed 'speak' command."
+    detect_bin="$(find_detect_bin)" || die "Unable to find detect-selection.sh."
+
+    if [ "$debug_mode" -eq 1 ]; then
+        detect_args=(--debug)
+    fi
+
+    selected_text="$("$detect_bin" "${detect_args[@]}")"
+
+    [ -n "${selected_text//[$'\t\r\n ']/}" ] || die "No selected text was found."
+
+    if [ "$debug_mode" -eq 1 ]; then
+        printf 'Selected text:\n%s\n' "$selected_text" >&2
+        exec "$speak_bin" "$selected_text"
+    fi
+
+    if command -v nohup >/dev/null 2>&1; then
+        nohup "$speak_bin" "$selected_text" >/dev/null 2>&1 &
+    else
+        "$speak_bin" "$selected_text" >/dev/null 2>&1 &
+    fi
+}
+
+main "$@"
