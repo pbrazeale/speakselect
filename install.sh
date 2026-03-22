@@ -135,6 +135,7 @@ install_system_packages() {
 
 install_python_packages() {
     local install_args=()
+    local pip_log=""
 
     ensure_python_available
 
@@ -143,7 +144,25 @@ install_python_packages() {
     fi
 
     log "Installing Piper Python packages with ${PYTHON_BIN}."
-    "$PYTHON_BIN" -m pip install "${install_args[@]}" --upgrade piper-tts pathvalidate
+    pip_log="$(mktemp "${TMPDIR:-/tmp}/piper-speak-pip.XXXXXX.log")"
+
+    if "$PYTHON_BIN" -m pip install "${install_args[@]}" --upgrade piper-tts pathvalidate >"$pip_log" 2>&1; then
+        rm -f "$pip_log"
+        return 0
+    fi
+
+    cat "$pip_log" >&2
+
+    if grep -Eq 'externally-managed-environment|externally managed' "$pip_log"; then
+        warn "Detected an externally managed Python environment. Retrying with --break-system-packages."
+        if "$PYTHON_BIN" -m pip install "${install_args[@]}" --break-system-packages --upgrade piper-tts pathvalidate; then
+            rm -f "$pip_log"
+            return 0
+        fi
+    fi
+
+    rm -f "$pip_log"
+    die "Failed to install Piper Python packages with ${PYTHON_BIN}."
 }
 
 install_voice() {
