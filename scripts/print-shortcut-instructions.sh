@@ -20,6 +20,12 @@ Recommended GNOME custom shortcut:
   Command: ${SHORTCUT_COMMAND}
   Shortcut: Ctrl+Alt+Space
 
+If you want a popup terminal window that shows the selected text:
+
+  Name: Speak Selection
+  Command: ${SHORTCUT_COMMAND} --window
+  Shortcut: Ctrl+Alt+Space
+
 Notes:
   - Wayland relies on wl-paste and the active app exposing the selection.
   - X11 relies on xclip and can read the primary selection directly.
