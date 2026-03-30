@@ -2,6 +2,8 @@
 
 The recommended binding is `Ctrl+Alt+Space`.
 
+If you want the shortcut to open a terminal window and show the captured text before speaking, use `speak-selection --window` instead of plain `speak-selection`.
+
 ## GNOME
 
 1. Open `Settings`
@@ -14,6 +16,14 @@ The recommended binding is `Ctrl+Alt+Space`.
 ```text
 Name: Speak Selection
 Command: ~/.local/bin/speak-selection
+Shortcut: Ctrl+Alt+Space
+```
+
+Or, to force a popup terminal window:
+
+```text
+Name: Speak Selection
+Command: ~/.local/bin/speak-selection --window
 Shortcut: Ctrl+Alt+Space
 ```
 
@@ -38,3 +48,9 @@ speak-selection --debug
 ```
 
 If that works, the command is installed correctly and the remaining issue is usually desktop shortcut configuration or selection access.
+
+If you want the shortcut itself to open a visible terminal, bind it to:
+
+```bash
+speak-selection --window
+```
