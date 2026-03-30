@@ -31,6 +31,7 @@ speak --faster
 speak --slower
 speak --set-voice en_US-lessac-medium
 speak-selection --debug
+speak-selection --window
 ```
 
 ## Requirements
@@ -171,6 +172,12 @@ The installed command is:
 
 ```bash
 ~/.local/bin/speak-selection
+```
+
+If you want the shortcut to open a terminal window and show the selected text while it speaks, bind:
+
+```bash
+~/.local/bin/speak-selection --window
 ```
 
 GNOME steps and Wayland/X11 notes are in [docs/keyboard-shortcuts.md](/home/pip/AAA_Builds/speakselect/docs/keyboard-shortcuts.md).
