@@ -11,10 +11,13 @@ usage() {
 Usage:
   speak-selection
   speak-selection --debug
+  speak-selection --window
 
 Options:
-  --debug     Print the captured text and run in the foreground
-  -h, --help  Show this help text
+  --debug              Print the captured text and run in the foreground
+  --window             Open a terminal window, print the captured text, and speak in the foreground
+  --window-from-file   Internal helper used by --window
+  -h, --help           Show this help text
 EOF
 }
 
@@ -51,18 +54,101 @@ find_detect_bin() {
     return 1
 }
 
+window_command() {
+    local script_path="$1"
+    local text_file="$2"
+    local shell_command=""
+    local bash_lc_command=""
+    local script_quoted=""
+    local text_file_quoted=""
+
+    script_quoted="$(printf '%q' "$script_path")"
+    text_file_quoted="$(printf '%q' "$text_file")"
+    shell_command="${script_quoted} --window-from-file ${text_file_quoted}; status=\$?; printf '\\nPress Enter to close... '; read -r _; exit \"\$status\""
+    bash_lc_command="$(printf 'bash -lc %q' "$shell_command")"
+
+    if command -v x-terminal-emulator >/dev/null 2>&1; then
+        x-terminal-emulator -e bash -lc "$shell_command"
+        return $?
+    fi
+
+    if command -v gnome-terminal >/dev/null 2>&1; then
+        gnome-terminal -- bash -lc "$shell_command"
+        return $?
+    fi
+
+    if command -v kgx >/dev/null 2>&1; then
+        kgx -- bash -lc "$shell_command"
+        return $?
+    fi
+
+    if command -v konsole >/dev/null 2>&1; then
+        konsole -e bash -lc "$shell_command"
+        return $?
+    fi
+
+    if command -v kitty >/dev/null 2>&1; then
+        kitty bash -lc "$shell_command"
+        return $?
+    fi
+
+    if command -v xfce4-terminal >/dev/null 2>&1; then
+        xfce4-terminal --command="$bash_lc_command"
+        return $?
+    fi
+
+    if command -v mate-terminal >/dev/null 2>&1; then
+        mate-terminal -- bash -lc "$shell_command"
+        return $?
+    fi
+
+    if command -v lxterminal >/dev/null 2>&1; then
+        lxterminal -e "$bash_lc_command"
+        return $?
+    fi
+
+    if command -v alacritty >/dev/null 2>&1; then
+        alacritty -e bash -lc "$shell_command"
+        return $?
+    fi
+
+    if command -v wezterm >/dev/null 2>&1; then
+        wezterm start -- bash -lc "$shell_command"
+        return $?
+    fi
+
+    if command -v xterm >/dev/null 2>&1; then
+        xterm -e bash -lc "$shell_command"
+        return $?
+    fi
+
+    return 1
+}
+
 main() {
     local debug_mode=0
+    local window_mode=0
     local speak_bin=""
     local detect_bin=""
     local selected_text=""
     local detect_args=()
+    local window_file=""
+    local text_file=""
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --debug)
                 debug_mode=1
                 shift
+                ;;
+            --window)
+                window_mode=1
+                shift
+                ;;
+            --window-from-file)
+                [ "$#" -ge 2 ] || die "--window-from-file requires a file path."
+                window_file="$2"
+                shift 2
                 ;;
             -h|--help)
                 usage
@@ -81,12 +167,32 @@ main() {
         detect_args=(--debug)
     fi
 
-    selected_text="$("$detect_bin" "${detect_args[@]}")"
+    if [ -n "$window_file" ]; then
+        [ -f "$window_file" ] || die "Window text file was not found: $window_file"
+        selected_text="$(cat "$window_file")"
+        rm -f "$window_file"
+    else
+        selected_text="$("$detect_bin" "${detect_args[@]}")"
+    fi
 
     [ -n "${selected_text//[$'\t\r\n ']/}" ] || die "No selected text was found."
 
-    if [ "$debug_mode" -eq 1 ]; then
-        printf 'Selected text:\n%s\n' "$selected_text" >&2
+    if [ "$window_mode" -eq 1 ]; then
+        text_file="$(mktemp "${TMPDIR:-/tmp}/speak-selection.XXXXXX.txt")"
+        printf '%s' "$selected_text" >"$text_file"
+        window_command "$0" "$text_file" || {
+            rm -f "$text_file"
+            die "Unable to open a terminal window. Install a supported terminal emulator or run 'speak-selection --debug' in an existing terminal."
+        }
+        exit 0
+    fi
+
+    if [ "$debug_mode" -eq 1 ] || [ -n "$window_file" ]; then
+        if [ -n "$window_file" ]; then
+            printf 'Speak Select Reading Window:\n%s\n' "$selected_text" >&2
+        else
+            printf 'Selected text:\n%s\n' "$selected_text" >&2
+        fi
         exec "$speak_bin" "$selected_text"
     fi
 
