@@ -20,13 +20,17 @@ Recommended GNOME custom shortcut:
   Command: ${SHORTCUT_COMMAND}
   Shortcut: Ctrl+Alt+Space
 
-If you want a popup terminal window that shows the selected text:
+For manual debugging in your current terminal:
+
+  Command: ${SHORTCUT_COMMAND} --debug
+
+If you want SpeakSelect to open its own debug terminal window:
 
   Name: Speak Selection
-  Command: ${SHORTCUT_COMMAND} --window
-  Shortcut: Ctrl+Alt+Space
+  Command: $(dirname "${SHORTCUT_COMMAND}")/speak-selection-debug
 
 Notes:
+  - Bind plain 'speak-selection' for the everyday shortcut path.
   - The default selection mode is primary-only, so highlighted text is required.
   - Wayland relies on wl-paste and the active app exposing the selection.
   - X11 relies on xclip and can read the primary selection directly.
