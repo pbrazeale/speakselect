@@ -205,6 +205,7 @@ install_scripts() {
 
     install -m 0755 "${REPO_DIR}/bin/speak" "${INSTALL_BIN_DIR}/speak"
     install -m 0755 "${REPO_DIR}/bin/speak-selection" "${INSTALL_BIN_DIR}/speak-selection"
+    install -m 0755 "${REPO_DIR}/bin/speak-selection-debug" "${INSTALL_BIN_DIR}/speak-selection-debug"
     install -m 0755 "${REPO_DIR}/scripts/detect-selection.sh" "${INSTALL_BIN_DIR}/detect-selection.sh"
     install -m 0755 "${REPO_DIR}/scripts/test-voice.sh" "${INSTALL_BIN_DIR}/test-voice.sh"
     install -m 0755 "${REPO_DIR}/scripts/print-shortcut-instructions.sh" "${INSTALL_BIN_DIR}/print-shortcut-instructions.sh"
