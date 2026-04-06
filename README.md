@@ -16,6 +16,7 @@ The project stays CLI-based. It does not run a Piper server, does not depend on 
 - One-command install with `./install.sh`
 - Standalone `speak` command for direct text or stdin
 - Standalone `speak-selection` command for highlighted text on Wayland or X11
+- Dedicated `speak-selection-debug` helper for visible terminal troubleshooting
 - Config file at `~/.config/piper-speak/config.env`
 - Default voice set to `en_GB-southern_english_female-low`
 - WAV output plus `ffplay` playback for predictable local audio
@@ -31,7 +32,7 @@ speak --faster
 speak --slower
 speak --set-voice en_US-lessac-medium
 speak-selection --debug
-speak-selection --window
+speak-selection-debug
 ```
 
 ## Requirements
@@ -103,6 +104,7 @@ python3 -m piper.download_voices --data-dir "$HOME/.local/share/piper" en_GB-sou
 mkdir -p "$HOME/.local/bin"
 install -m 0755 bin/speak "$HOME/.local/bin/speak"
 install -m 0755 bin/speak-selection "$HOME/.local/bin/speak-selection"
+install -m 0755 bin/speak-selection-debug "$HOME/.local/bin/speak-selection-debug"
 install -m 0755 scripts/detect-selection.sh "$HOME/.local/bin/detect-selection.sh"
 install -m 0755 scripts/test-voice.sh "$HOME/.local/bin/test-voice.sh"
 install -m 0755 scripts/print-shortcut-instructions.sh "$HOME/.local/bin/print-shortcut-instructions.sh"
@@ -174,10 +176,10 @@ The installed command is:
 ~/.local/bin/speak-selection
 ```
 
-If you want the shortcut to open a terminal window and show the selected text while it speaks, bind:
+For a visible troubleshooting window, run:
 
 ```bash
-~/.local/bin/speak-selection --window
+~/.local/bin/speak-selection-debug
 ```
 
 GNOME steps and Wayland/X11 notes are in [docs/keyboard-shortcuts.md](/home/pip/AAA_Builds/speakselect/docs/keyboard-shortcuts.md).
@@ -197,6 +199,7 @@ The short version:
 - If `speak` says Piper is missing, run `python3 -m pip install --user --upgrade piper-tts pathvalidate`
 - If playback fails, make sure `ffplay` exists
 - If `speak-selection` is silent, try `speak-selection --debug`
+- If you want a visible debug window, run `speak-selection-debug`
 - If the voice is missing, re-run `./install.sh --voice YOUR_VOICE`
 - If the command is not found, add `~/.local/bin` to `PATH`
 
