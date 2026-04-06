@@ -2,7 +2,7 @@
 
 The recommended binding is `Ctrl+Alt+Space`.
 
-If you want the shortcut to open a terminal window and show the captured text before speaking, use `speak-selection --window` instead of plain `speak-selection`.
+Bind `speak-selection` directly for normal use. Keep debugging separate from the everyday shortcut path.
 
 ## GNOME
 
@@ -19,12 +19,16 @@ Command: ~/.local/bin/speak-selection
 Shortcut: Ctrl+Alt+Space
 ```
 
-Or, to force a popup terminal window:
+For manual debugging, run this in a terminal:
 
-```text
-Name: Speak Selection
-Command: ~/.local/bin/speak-selection --window
-Shortcut: Ctrl+Alt+Space
+```bash
+~/.local/bin/speak-selection --debug
+```
+
+If you specifically want SpeakSelect to open its own debug terminal window, run:
+
+```bash
+~/.local/bin/speak-selection-debug
 ```
 
 If your desktop does not expand `~`, replace it with the absolute path from:
@@ -53,8 +57,8 @@ The debug output now includes the exact selection source, such as `wayland-prima
 
 If that works, the command is installed correctly and the remaining issue is usually desktop shortcut configuration or selection access.
 
-If you want the shortcut itself to open a visible terminal, bind it to:
+If you want SpeakSelect itself to open a visible debug terminal window, run:
 
 ```bash
-speak-selection --window
+speak-selection-debug
 ```
