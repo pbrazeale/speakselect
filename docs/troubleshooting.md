@@ -50,7 +50,9 @@ Then open a new shell or source your profile.
 
 - Install `wl-clipboard`
 - Try `speak-selection --debug`
-- If primary selection is unavailable, copy the text first so clipboard fallback has something to read
+- Look for the reported source in debug output, such as `wayland-primary`
+- The default `primary-only` mode does not fall back to clipboard automatically
+- If you want clipboard fallback, run `speak-selection --prefer-primary` or set `SELECTION_SOURCE_MODE="prefer-primary"` in `~/.config/piper-speak/config.env`
 - Some sandboxed apps expose clipboard content differently than native apps
 
 ## Slow Startup
