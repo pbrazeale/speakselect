@@ -27,7 +27,8 @@ If you want a popup terminal window that shows the selected text:
   Shortcut: Ctrl+Alt+Space
 
 Notes:
+  - The default selection mode is primary-only, so highlighted text is required.
   - Wayland relies on wl-paste and the active app exposing the selection.
   - X11 relies on xclip and can read the primary selection directly.
-  - Run 'speak-selection --debug' from a terminal if the shortcut is silent.
+  - Run 'speak-selection --debug' from a terminal to see the exact source used.
 EOF
