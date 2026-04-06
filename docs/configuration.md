@@ -13,6 +13,10 @@ PIPER_DATA_DIR="$HOME/.local/share/piper"
 PIPER_VOICE="en_GB-southern_english_female-low"
 PIPER_LENGTH_SCALE="1.0"
 PIPER_PYTHON="python3"
+PIPER_MODE="cli"
+PIPER_HTTP_HOST="127.0.0.1"
+PIPER_HTTP_PORT="5000"
+PIPER_HTTP_VOICE="en_GB-southern_english_female-low"
 SELECTION_SOURCE_MODE="primary-only"
 SELECTION_RETRY_COUNT="3"
 SELECTION_RETRY_DELAY_MS="50"
@@ -24,9 +28,50 @@ SELECTION_RETRY_DELAY_MS="50"
 - `PIPER_VOICE`: Voice basename without the file extension
 - `PIPER_LENGTH_SCALE`: Piper speed/length scale. Lower values are faster. Higher values are slower
 - `PIPER_PYTHON`: Python interpreter used for `python -m piper` and `python -m piper.download_voices`
+- `PIPER_MODE`: Runtime mode. `cli` uses direct per-run Piper invocation. `http` uses the local Piper HTTP server
+- `PIPER_HTTP_HOST`: Host interface for the Piper HTTP server
+- `PIPER_HTTP_PORT`: Port used by the Piper HTTP server
+- `PIPER_HTTP_VOICE`: Voice used when `speak` sends HTTP synthesis requests
 - `SELECTION_SOURCE_MODE`: Selected-text capture policy. Supported values are `primary-only`, `clipboard-only`, `prefer-primary`, and `prefer-clipboard`
 - `SELECTION_RETRY_COUNT`: How many times SpeakSelect checks the primary selection before giving up
 - `SELECTION_RETRY_DELAY_MS`: Delay in milliseconds between primary-selection retries
+
+## Runtime Modes
+
+The safe migration default is:
+
+```bash
+PIPER_MODE="cli"
+```
+
+That preserves the original behavior where `speak` invokes Piper directly for each request.
+
+To use the local server/client model:
+
+```bash
+PIPER_MODE="http"
+PIPER_HTTP_HOST="127.0.0.1"
+PIPER_HTTP_PORT="5000"
+PIPER_HTTP_VOICE="en_GB-southern_english_female-low"
+```
+
+Then start the local server:
+
+```bash
+piper-server start
+```
+
+Check reachability:
+
+```bash
+speak --check-server
+```
+
+Stop the server:
+
+```bash
+piper-server stop
+```
 
 ## Selection Capture Policy
 
