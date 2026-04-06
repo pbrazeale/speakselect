@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+readonly DEFAULT_SPEAK_SELECTION_BIN="${SCRIPT_DIR}/speak-selection"
+
+find_speak_selection_bin() {
+    if [ -x "$DEFAULT_SPEAK_SELECTION_BIN" ]; then
+        printf '%s\n' "$DEFAULT_SPEAK_SELECTION_BIN"
+        return 0
+    fi
+
+    if command -v speak-selection >/dev/null 2>&1; then
+        command -v speak-selection
+        return 0
+    fi
+
+    printf 'Error: unable to find the installed speak-selection command.\n' >&2
+    exit 1
+}
+
+main() {
+    local speak_selection_bin=""
+
+    speak_selection_bin="$(find_speak_selection_bin)"
+    exec "$speak_selection_bin" --window "$@"
+}
+
+main "$@"
