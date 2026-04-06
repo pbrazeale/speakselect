@@ -180,14 +180,7 @@ install_voice() {
     "$PYTHON_BIN" -m piper.download_voices --data-dir "$PIPER_DATA_DIR" "$VOICE"
 }
 
-render_config() {
-    mkdir -p "$CONFIG_DIR"
-
-    if [ -f "$CONFIG_FILE" ] && [ "$FORCE" -ne 1 ]; then
-        log "Keeping existing config at ${CONFIG_FILE}."
-        return 0
-    fi
-
+rendered_config_contents() {
     [ -f "$EXAMPLE_CONFIG" ] || die "Missing example config at ${EXAMPLE_CONFIG}."
 
     sed \
@@ -196,7 +189,54 @@ render_config() {
         -e "s|^PIPER_LENGTH_SCALE=.*$|PIPER_LENGTH_SCALE=\"${SPEED}\"|" \
         -e "s|^PIPER_PYTHON=.*$|PIPER_PYTHON=\"${PYTHON_BIN}\"|" \
         -e "s|^PIPER_HTTP_VOICE=.*$|PIPER_HTTP_VOICE=\"${VOICE}\"|" \
-        "$EXAMPLE_CONFIG" >"$CONFIG_FILE"
+        "$EXAMPLE_CONFIG"
+}
+
+append_missing_config_keys() {
+    local rendered_file="$1"
+    local missing_lines=()
+    local line=""
+    local key=""
+    local backup_file="${CONFIG_FILE}.bak"
+
+    while IFS= read -r line; do
+        key="${line%%=*}"
+        if ! grep -Eq "^${key}=" "$CONFIG_FILE"; then
+            missing_lines+=("$line")
+        fi
+    done <"$rendered_file"
+
+    if [ "${#missing_lines[@]}" -eq 0 ]; then
+        log "Keeping existing config at ${CONFIG_FILE}."
+        return 0
+    fi
+
+    cp "$CONFIG_FILE" "$backup_file"
+
+    {
+        printf '\n'
+        printf '# Added by SpeakSelect installer migration\n'
+        printf '%s\n' "${missing_lines[@]}"
+    } >>"$CONFIG_FILE"
+
+    log "Migrated existing config at ${CONFIG_FILE}; backup written to ${backup_file}."
+}
+
+render_config() {
+    local rendered_file=""
+
+    mkdir -p "$CONFIG_DIR"
+    rendered_file="$(mktemp "${TMPDIR:-/tmp}/piper-speak-config.XXXXXX")"
+
+    if [ -f "$CONFIG_FILE" ] && [ "$FORCE" -ne 1 ]; then
+        rendered_config_contents >"$rendered_file"
+        append_missing_config_keys "$rendered_file"
+        rm -f "$rendered_file"
+        return 0
+    fi
+
+    rendered_config_contents >"$CONFIG_FILE"
+    rm -f "$rendered_file"
 
     log "Wrote config to ${CONFIG_FILE}."
 }
@@ -222,8 +262,10 @@ print_next_steps() {
         log "  1. Add ${INSTALL_BIN_DIR} to your PATH."
     fi
     log "  2. Test the install with: speak \"hello\""
-    log "  3. Optional: bind speak-selection to Ctrl+Alt+Space."
-    log "  4. Shortcut help: print-shortcut-instructions.sh"
+    log "  3. Optional: switch to HTTP mode with PIPER_MODE=\"http\" in ${CONFIG_FILE}."
+    log "  4. Optional: start the local server with: piper-server start"
+    log "  5. Optional: bind speak-selection to Ctrl+Alt+Space."
+    log "  6. Shortcut help: print-shortcut-instructions.sh"
 }
 
 main() {
