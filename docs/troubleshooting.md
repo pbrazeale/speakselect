@@ -50,10 +50,17 @@ Then open a new shell or source your profile.
 
 - Install `wl-clipboard`
 - Try `speak-selection --debug`
+- If you want SpeakSelect to open its own visible debug terminal, run `speak-selection-debug`
 - Look for the reported source in debug output, such as `wayland-primary`
 - The default `primary-only` mode does not fall back to clipboard automatically
 - If you want clipboard fallback, run `speak-selection --prefer-primary` or set `SELECTION_SOURCE_MODE="prefer-primary"` in `~/.config/piper-speak/config.env`
 - Some sandboxed apps expose clipboard content differently than native apps
+
+## Shortcut Opens a Terminal
+
+- Bind `speak-selection`, not `speak-selection-debug`, for the normal desktop shortcut
+- Use `speak-selection-debug` only when you want a visible troubleshooting window
+- In GNOME custom shortcuts, bind the command directly instead of launching it through a terminal app
 
 ## Slow Startup
 
