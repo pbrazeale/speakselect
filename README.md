@@ -12,17 +12,17 @@ SpeakSelect packages Piper into a small Linux-first speech workflow with:
 
 The project now supports two runtime modes:
 
-- `cli`: direct per-run Piper invocation
-- `http`: a local Piper HTTP server with a thin `speak` client
+- `http`: a local Piper HTTP server with a thin `speak` client on loopback only
+- `cli`: direct per-run Piper invocation as a compatibility fallback
 
 The scripts remain readable Bash entrypoints that do not depend on shell functions in `~/.bashrc`.
 
 ## Features
 
 - One-command install with `./install.sh`
-- Standalone `speak` command for direct text or stdin in either CLI or HTTP mode
+- Standalone `speak` command for direct text or stdin in local HTTP mode or CLI fallback mode
 - Standalone `speak-selection` command for highlighted text on Wayland or X11
-- `piper-server` lifecycle helper for the local Piper HTTP server
+- `piper-server` lifecycle helper for the local Piper HTTP server on `127.0.0.1`
 - Dedicated `speak-selection-debug` helper for visible terminal troubleshooting
 - Config file at `~/.config/piper-speak/config.env`
 - Default voice set to `en_GB-southern_english_female-low`
@@ -38,8 +38,9 @@ speak --list-voices
 speak --faster
 speak --slower
 speak --set-voice en_US-lessac-medium
-speak --check-server
 piper-server start
+speak --check-server
+speak "hello world"
 speak-selection --debug
 speak-selection-debug
 ```
@@ -76,6 +77,7 @@ chmod +x install.sh
 Then test it:
 
 ```bash
+piper-server start
 speak "hello"
 ```
 
@@ -146,7 +148,7 @@ PIPER_DATA_DIR="$HOME/.local/share/piper"
 PIPER_VOICE="en_GB-southern_english_female-low"
 PIPER_LENGTH_SCALE="1.0"
 PIPER_PYTHON="python3"
-PIPER_MODE="cli"
+PIPER_MODE="http"
 PIPER_HTTP_HOST="127.0.0.1"
 PIPER_HTTP_PORT="5000"
 PIPER_HTTP_VOICE="en_GB-southern_english_female-low"
@@ -166,16 +168,24 @@ Useful commands:
 
 `--faster` reduces `PIPER_LENGTH_SCALE` by `0.1` and saves it back to `~/.config/piper-speak/config.env`. `--slower` increases it by `0.1` and also saves it. For example, `1.0` becomes `0.9` after `speak --faster`, and `1.0` becomes `1.1` after `speak --slower`.
 
-To enable the local server/client model, set:
+The default local workflow uses:
 
 ```bash
 PIPER_MODE="http"
 ```
 
+This server is intended for the same machine only. SpeakSelect keeps it on loopback, so you do not need to open firewall rules or expose it to other computers.
+
 Then start the server:
 
 ```bash
 piper-server start
+```
+
+If you prefer the older per-run behavior, switch back to:
+
+```bash
+PIPER_MODE="cli"
 ```
 
 SpeakSelect does not install a `systemd --user` service yet. In this phase, server startup remains a manual `piper-server start` and `piper-server stop` workflow.
@@ -234,6 +244,7 @@ The short version:
 
 - If `speak` says Piper is missing, run `python3 -m pip install --user --upgrade 'piper-tts[http]' pathvalidate`
 - If `speak --check-server` fails in HTTP mode, run `piper-server start`
+- The local HTTP server is loopback-only and not intended for remote streaming or exposed ports
 - If playback fails, make sure `ffplay` exists
 - If `speak-selection` is silent, try `speak-selection --debug`
 - If you want a visible debug window, run `speak-selection-debug`
