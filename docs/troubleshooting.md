@@ -5,7 +5,7 @@
 Install the Python dependencies again:
 
 ```bash
-python3 -m pip install --user --upgrade piper-tts pathvalidate
+python3 -m pip install --user --upgrade 'piper-tts[http]' pathvalidate
 ```
 
 ## No Sound
@@ -28,6 +28,13 @@ Or use the installer:
 ./install.sh --voice en_GB-southern_english_female-low
 ```
 
+If you are using HTTP mode, restart the local server after changing voices:
+
+```bash
+piper-server stop
+piper-server start
+```
+
 ## `ffplay` Missing
 
 Install `ffmpeg`, then verify:
@@ -45,6 +52,20 @@ export PATH="$HOME/.local/bin:$PATH"
 ```
 
 Then open a new shell or source your profile.
+
+## HTTP Server Not Running
+
+- If `PIPER_MODE="http"`, check the server with `speak --check-server`
+- Start it with `piper-server start`
+- Inspect the current state with `piper-server status`
+- Read recent server logs with `piper-server logs`
+
+## HTTP Connection Errors
+
+- Confirm `PIPER_HTTP_HOST` and `PIPER_HTTP_PORT` in `~/.config/piper-speak/config.env`
+- Run `speak --check-server`
+- If the server is stopped, run `piper-server start`
+- If the server returns an error, inspect `piper-server logs`
 
 ## Wayland Selection Issues
 
@@ -64,4 +85,4 @@ Then open a new shell or source your profile.
 
 ## Slow Startup
 
-Piper CLI loads the model on each run. That is expected in this simple CLI wrapper. SpeakSelect keeps the simpler WAV plus `ffplay` flow for reliability, not long-lived process reuse.
+CLI mode loads the model on each run. If you want to avoid that repeated startup cost, switch to `PIPER_MODE="http"` and run the local Piper server with `piper-server start`.
