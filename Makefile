@@ -9,7 +9,7 @@ uninstall:
 	./uninstall.sh
 
 test:
-	./scripts/test-voice.sh
+	./tests/run.sh
 
 lint:
 	shellcheck install.sh uninstall.sh bin/speak bin/speak-selection scripts/*.sh
