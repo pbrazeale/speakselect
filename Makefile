@@ -12,4 +12,4 @@ test:
 	./tests/run.sh
 
 lint:
-	shellcheck install.sh uninstall.sh bin/speak bin/speak-selection scripts/*.sh
+	shellcheck install.sh uninstall.sh bin/speak bin/piper-server bin/speak-selection bin/speak-selection-debug scripts/*.sh tests/*.sh
