@@ -67,6 +67,13 @@ Then open a new shell or source your profile.
 - If the server is stopped, run `piper-server start`
 - If the server returns an error, inspect `piper-server logs`
 
+## Upgrade or Config Migration Problems
+
+- Rerun `./install.sh` to append any missing config keys for newer versions
+- Check `~/.config/piper-speak/config.env.bak` if you need to compare pre-migration settings
+- Fresh installs stay on `PIPER_MODE="cli"` by default, so switch to `PIPER_MODE="http"` explicitly if you want the local server/client path
+- `systemd --user` service files are not installed yet in this phase; manage the server manually with `piper-server start` and `piper-server stop`
+
 ## Wayland Selection Issues
 
 - Install `wl-clipboard`
