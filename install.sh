@@ -261,9 +261,9 @@ print_next_steps() {
     if ! printf '%s' ":${PATH}:" | grep -Fq ":${INSTALL_BIN_DIR}:"; then
         log "  1. Add ${INSTALL_BIN_DIR} to your PATH."
     fi
-    log "  2. Test the install with: speak \"hello\""
-    log "  3. Optional: switch to HTTP mode with PIPER_MODE=\"http\" in ${CONFIG_FILE}."
-    log "  4. Optional: start the local server with: piper-server start"
+    log "  2. Start the local server with: piper-server start"
+    log "  3. Test the install with: speak \"hello\""
+    log "  4. Optional: switch back to CLI mode with PIPER_MODE=\"cli\" in ${CONFIG_FILE}."
     log "  5. Optional: bind speak-selection to Ctrl+Alt+Space."
     log "  6. Shortcut help: print-shortcut-instructions.sh"
 }
