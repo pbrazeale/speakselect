@@ -4,6 +4,16 @@ The recommended binding is `Ctrl+Alt+Space`.
 
 Bind `speak-selection` directly for normal use. Keep debugging separate from the everyday shortcut path.
 
+The normal shortcut flow is local only:
+
+1. the shortcut runs `speak-selection`
+2. `speak-selection` reads the current primary selection
+3. the text is sent to the local `speak` command
+4. `speak` talks to the local Piper server on `127.0.0.1:5000` by default
+5. audio plays on the same machine
+
+No remote server is required for the recommended setup.
+
 ## GNOME
 
 1. Open `Settings`
