@@ -29,8 +29,8 @@ SELECTION_RETRY_DELAY_MS="50"
 - `PIPER_LENGTH_SCALE`: Piper speed/length scale. Lower values are faster. Higher values are slower
 - `PIPER_PYTHON`: Python interpreter used for `python -m piper` and `python -m piper.download_voices`
 - `PIPER_MODE`: Runtime mode. `http` uses the local Piper HTTP server. `cli` uses direct per-run Piper invocation as a fallback
-- `PIPER_HTTP_HOST`: Host interface for the Piper HTTP server. Keep this on loopback only
-- `PIPER_HTTP_PORT`: Port used by the Piper HTTP server
+- `PIPER_HTTP_HOST`: Host interface for the Piper HTTP server. Keep this on loopback only. The default is `127.0.0.1`
+- `PIPER_HTTP_PORT`: Port used by the Piper HTTP server. The default is `5000`
 - `PIPER_HTTP_VOICE`: Voice used when `speak` sends HTTP synthesis requests
 - `SELECTION_SOURCE_MODE`: Selected-text capture policy. Supported values are `primary-only`, `clipboard-only`, `prefer-primary`, and `prefer-clipboard`
 - `SELECTION_RETRY_COUNT`: How many times SpeakSelect checks the primary selection before giving up
@@ -45,6 +45,14 @@ PIPER_MODE="http"
 ```
 
 SpeakSelect is designed to run this server on the same machine only. Keep `PIPER_HTTP_HOST` on `127.0.0.1`, `localhost`, or `::1`. You do not need to open firewall ports for local use.
+
+The default local endpoint is:
+
+```text
+http://127.0.0.1:5000/
+```
+
+SpeakSelect validates this at runtime. If you point `PIPER_HTTP_HOST` at an external interface such as `0.0.0.0`, the HTTP mode commands will refuse to run.
 
 Current default HTTP settings:
 
@@ -71,6 +79,14 @@ Stop the server:
 
 ```bash
 piper-server stop
+```
+
+If you change `PIPER_HTTP_PORT`, restart the server before testing again:
+
+```bash
+piper-server stop
+piper-server start
+speak --check-server
 ```
 
 ## Config Migration
@@ -105,6 +121,8 @@ You can also override the mode for a single run:
 speak-selection --prefer-primary
 speak-selection --prefer-clipboard
 ```
+
+The default `primary-only` setting is the reason SpeakSelect now fails clearly when highlighted text is unavailable instead of reading old clipboard contents by accident.
 
 ## Helpful Commands
 
