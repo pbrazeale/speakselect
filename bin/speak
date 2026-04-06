@@ -10,7 +10,7 @@ PIPER_DATA_DIR="${PIPER_DATA_DIR:-$DEFAULT_DATA_DIR}"
 PIPER_VOICE="${PIPER_VOICE:-en_GB-southern_english_female-low}"
 PIPER_LENGTH_SCALE="${PIPER_LENGTH_SCALE:-1.0}"
 PIPER_PYTHON="${PIPER_PYTHON:-python3}"
-PIPER_MODE="${PIPER_MODE:-cli}"
+PIPER_MODE="${PIPER_MODE:-http}"
 PIPER_HTTP_HOST="${PIPER_HTTP_HOST:-127.0.0.1}"
 PIPER_HTTP_PORT="${PIPER_HTTP_PORT:-5000}"
 PIPER_HTTP_VOICE="${PIPER_HTTP_VOICE:-}"
@@ -61,7 +61,7 @@ load_config() {
 }
 
 normalize_config() {
-    PIPER_MODE="${PIPER_MODE:-cli}"
+    PIPER_MODE="${PIPER_MODE:-http}"
     PIPER_HTTP_HOST="${PIPER_HTTP_HOST:-127.0.0.1}"
     PIPER_HTTP_PORT="${PIPER_HTTP_PORT:-5000}"
     PIPER_HTTP_VOICE="${PIPER_HTTP_VOICE:-$PIPER_VOICE}"
@@ -109,6 +109,13 @@ http_base_url() {
 print_config() {
     local model_file="${PIPER_DATA_DIR}/${PIPER_VOICE}.onnx"
 
+    case "$PIPER_MODE" in
+        cli|http) ;;
+        *)
+            die "Unsupported PIPER_MODE '${PIPER_MODE}'. Use 'cli' or 'http'."
+            ;;
+    esac
+
     printf 'CONFIG_FILE=%s\n' "$CONFIG_FILE"
     printf 'PIPER_MODE=%s\n' "$PIPER_MODE"
     printf 'PIPER_DATA_DIR=%s\n' "$PIPER_DATA_DIR"
@@ -125,12 +132,24 @@ print_config() {
 validate_runtime_mode() {
     case "$PIPER_MODE" in
         cli|http)
-            return 0
             ;;
         *)
             die "Unsupported PIPER_MODE '${PIPER_MODE}'. Use 'cli' or 'http'."
             ;;
     esac
+
+    if [ "$PIPER_MODE" = "http" ]; then
+        case "$PIPER_HTTP_HOST" in
+            127.0.0.1|localhost|::1)
+                return 0
+                ;;
+            *)
+                die "HTTP mode is local-only. Set PIPER_HTTP_HOST to 127.0.0.1, localhost, or ::1."
+                ;;
+        esac
+    fi
+
+    return 0
 }
 
 http_fail_message() {
