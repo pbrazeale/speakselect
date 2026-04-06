@@ -159,6 +159,31 @@ window_command() {
     return 1
 }
 
+run_speak_foreground() {
+    local speak_bin="$1"
+    local selected_text="$2"
+    local window_file="$3"
+
+    if [ -n "$window_file" ]; then
+        printf 'Speak Select Reading Window:\n%s\n' "$selected_text" >&2
+    else
+        printf 'Selected text:\n%s\n' "$selected_text" >&2
+    fi
+
+    exec "$speak_bin" "$selected_text"
+}
+
+launch_speak_background() {
+    local speak_bin="$1"
+    local selected_text="$2"
+
+    if command -v nohup >/dev/null 2>&1; then
+        nohup "$speak_bin" "$selected_text" >/dev/null 2>&1 &
+    else
+        "$speak_bin" "$selected_text" >/dev/null 2>&1 &
+    fi
+}
+
 main() {
     local debug_mode=0
     local window_mode=0
@@ -255,19 +280,10 @@ main() {
     fi
 
     if [ "$debug_mode" -eq 1 ] || [ -n "$window_file" ]; then
-        if [ -n "$window_file" ]; then
-            printf 'Speak Select Reading Window:\n%s\n' "$selected_text" >&2
-        else
-            printf 'Selected text:\n%s\n' "$selected_text" >&2
-        fi
-        exec "$speak_bin" "$selected_text"
+        run_speak_foreground "$speak_bin" "$selected_text" "$window_file"
     fi
 
-    if command -v nohup >/dev/null 2>&1; then
-        nohup "$speak_bin" "$selected_text" >/dev/null 2>&1 &
-    else
-        "$speak_bin" "$selected_text" >/dev/null 2>&1 &
-    fi
+    launch_speak_background "$speak_bin" "$selected_text"
 }
 
 main "$@"
