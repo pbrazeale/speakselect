@@ -79,6 +79,8 @@ Then test it:
 speak "hello"
 ```
 
+If you already have a `~/.config/piper-speak/config.env`, rerunning `./install.sh` now migrates it by appending any missing settings and writing a backup to `config.env.bak`.
+
 If `~/.local/bin` is not on your `PATH`, add it in your shell profile:
 
 ```bash
@@ -127,6 +129,8 @@ mkdir -p "$HOME/.config/piper-speak"
 cp config/piper-speak.env.example "$HOME/.config/piper-speak/config.env"
 ```
 
+If you already have a config file, rerun `./install.sh` instead of replacing it manually so missing settings are appended safely.
+
 ## Configuration
 
 SpeakSelect reads configuration from:
@@ -173,6 +177,8 @@ Then start the server:
 ```bash
 piper-server start
 ```
+
+SpeakSelect does not install a `systemd --user` service yet. In this phase, server startup remains a manual `piper-server start` and `piper-server stop` workflow.
 
 More detail: [docs/configuration.md](/home/pip/AAA_Builds/speakselect/docs/configuration.md)
 
