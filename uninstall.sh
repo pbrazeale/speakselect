@@ -111,7 +111,9 @@ main() {
     done
 
     remove_file_if_present "${INSTALL_BIN_DIR}/speak"
+    remove_file_if_present "${INSTALL_BIN_DIR}/piper-server"
     remove_file_if_present "${INSTALL_BIN_DIR}/speak-selection"
+    remove_file_if_present "${INSTALL_BIN_DIR}/speak-selection-debug"
     remove_file_if_present "${INSTALL_BIN_DIR}/detect-selection.sh"
     remove_file_if_present "${INSTALL_BIN_DIR}/test-voice.sh"
     remove_file_if_present "${INSTALL_BIN_DIR}/print-shortcut-instructions.sh"

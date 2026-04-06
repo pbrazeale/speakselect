@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/piper-speak"
+readonly DEFAULT_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/piper"
+readonly DEFAULT_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/piper-speak"
+readonly DEFAULT_CONFIG_FILE="${DEFAULT_CONFIG_DIR}/config.env"
+
+CONFIG_FILE="${PIPER_SPEAK_CONFIG:-$DEFAULT_CONFIG_FILE}"
+PIPER_DATA_DIR="${PIPER_DATA_DIR:-$DEFAULT_DATA_DIR}"
+PIPER_VOICE="${PIPER_VOICE:-en_GB-southern_english_female-low}"
+PIPER_PYTHON="${PIPER_PYTHON:-python3}"
+PIPER_HTTP_HOST="${PIPER_HTTP_HOST:-127.0.0.1}"
+PIPER_HTTP_PORT="${PIPER_HTTP_PORT:-5000}"
+PIPER_HTTP_VOICE="${PIPER_HTTP_VOICE:-}"
+STATE_DIR="${PIPER_SERVER_STATE_DIR:-$DEFAULT_STATE_DIR}"
+PID_FILE="${STATE_DIR}/piper-http.pid"
+LOG_FILE="${STATE_DIR}/piper-http.log"
+
+usage() {
+    cat <<'EOF'
+Usage:
+  piper-server start
+  piper-server stop
+  piper-server status
+  piper-server logs
+  piper-server foreground
+
+This helper manages a loopback-only local Piper HTTP server for the same machine.
+EOF
+}
+
+log() {
+    printf '%s\n' "$*"
+}
+
+die() {
+    printf 'Error: %s\n' "$*" >&2
+    exit 1
+}
+
+load_config() {
+    if [ -f "$CONFIG_FILE" ]; then
+        # shellcheck disable=SC1090
+        source "$CONFIG_FILE"
+    fi
+}
+
+normalize_config() {
+    PIPER_HTTP_HOST="${PIPER_HTTP_HOST:-127.0.0.1}"
+    PIPER_HTTP_PORT="${PIPER_HTTP_PORT:-5000}"
+    PIPER_HTTP_VOICE="${PIPER_HTTP_VOICE:-$PIPER_VOICE}"
+}
+
+validate_local_host() {
+    case "$PIPER_HTTP_HOST" in
+        127.0.0.1|localhost|::1)
+            return 0
+            ;;
+        *)
+            die "SpeakSelect HTTP mode is local-only. Set PIPER_HTTP_HOST to 127.0.0.1, localhost, or ::1."
+            ;;
+    esac
+}
+
+require_command() {
+    local command_name="$1"
+    local error_message="$2"
+
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+        die "$error_message"
+    fi
+}
+
+require_piper_http_module() {
+    require_command "$PIPER_PYTHON" "Python interpreter '${PIPER_PYTHON}' was not found."
+
+    if ! "$PIPER_PYTHON" -c 'import importlib, sys; importlib.import_module("piper.http_server")' >/dev/null 2>&1; then
+        die "Piper HTTP support is not available for ${PIPER_PYTHON}. Install it with '${PIPER_PYTHON} -m pip install piper-tts[http] pathvalidate'."
+    fi
+}
+
+ensure_state_dir() {
+    mkdir -p "$STATE_DIR"
+}
+
+server_pid() {
+    if [ -f "$PID_FILE" ]; then
+        cat "$PID_FILE"
+        return 0
+    fi
+
+    return 1
+}
+
+is_running_pid() {
+    local pid="$1"
+
+    if [ -z "$pid" ]; then
+        return 1
+    fi
+
+    kill -0 "$pid" >/dev/null 2>&1
+}
+
+cleanup_stale_pid() {
+    local pid=""
+
+    pid="$(server_pid || true)"
+    if [ -n "$pid" ] && ! is_running_pid "$pid"; then
+        rm -f "$PID_FILE"
+    fi
+}
+
+start_server() {
+    local pid=""
+
+    cleanup_stale_pid
+    pid="$(server_pid || true)"
+    if [ -n "$pid" ] && is_running_pid "$pid"; then
+        log "Piper HTTP server is already running (pid ${pid})."
+        return 0
+    fi
+
+    require_piper_http_module
+    ensure_state_dir
+    validate_local_host
+
+    nohup "$PIPER_PYTHON" -m piper.http_server \
+        --data-dir "$PIPER_DATA_DIR" \
+        -m "$PIPER_HTTP_VOICE" \
+        --host "$PIPER_HTTP_HOST" \
+        --port "$PIPER_HTTP_PORT" \
+        >>"$LOG_FILE" 2>&1 &
+
+    pid="$!"
+    printf '%s\n' "$pid" >"$PID_FILE"
+    log "Started Piper HTTP server (pid ${pid})."
+}
+
+stop_server() {
+    local pid=""
+    local remaining_checks=20
+
+    cleanup_stale_pid
+    pid="$(server_pid || true)"
+    if [ -z "$pid" ]; then
+        log "Piper HTTP server is not running."
+        return 0
+    fi
+
+    if ! is_running_pid "$pid"; then
+        rm -f "$PID_FILE"
+        log "Removed stale PID file."
+        return 0
+    fi
+
+    kill "$pid" >/dev/null 2>&1 || die "Failed to stop Piper HTTP server pid ${pid}."
+
+    while is_running_pid "$pid" && [ "$remaining_checks" -gt 0 ]; do
+        sleep 0.1
+        remaining_checks=$((remaining_checks - 1))
+    done
+
+    if is_running_pid "$pid"; then
+        die "Piper HTTP server pid ${pid} did not stop cleanly."
+    fi
+
+    rm -f "$PID_FILE"
+    log "Stopped Piper HTTP server."
+}
+
+status_server() {
+    local pid=""
+
+    cleanup_stale_pid
+    pid="$(server_pid || true)"
+    if [ -n "$pid" ] && is_running_pid "$pid"; then
+        printf 'running pid=%s host=%s port=%s voice=%s\n' "$pid" "$PIPER_HTTP_HOST" "$PIPER_HTTP_PORT" "$PIPER_HTTP_VOICE"
+        return 0
+    fi
+
+    printf 'stopped\n'
+    return 1
+}
+
+show_logs() {
+    ensure_state_dir
+
+    if [ ! -f "$LOG_FILE" ]; then
+        log "No Piper HTTP server log exists yet."
+        return 0
+    fi
+
+    tail -n 50 "$LOG_FILE"
+}
+
+foreground_server() {
+    require_piper_http_module
+    validate_local_host
+    exec "$PIPER_PYTHON" -m piper.http_server \
+        --data-dir "$PIPER_DATA_DIR" \
+        -m "$PIPER_HTTP_VOICE" \
+        --host "$PIPER_HTTP_HOST" \
+        --port "$PIPER_HTTP_PORT"
+}
+
+main() {
+    local command="${1:-}"
+
+    load_config
+    normalize_config
+
+    case "$command" in
+        start)
+            start_server
+            ;;
+        stop)
+            stop_server
+            ;;
+        status)
+            status_server
+            ;;
+        logs)
+            show_logs
+            ;;
+        foreground)
+            foreground_server
+            ;;
+        -h|--help|help)
+            usage
+            ;;
+        *)
+            usage >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

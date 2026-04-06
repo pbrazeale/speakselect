@@ -10,6 +10,14 @@ PIPER_DATA_DIR="${PIPER_DATA_DIR:-$DEFAULT_DATA_DIR}"
 PIPER_VOICE="${PIPER_VOICE:-en_GB-southern_english_female-low}"
 PIPER_LENGTH_SCALE="${PIPER_LENGTH_SCALE:-1.0}"
 PIPER_PYTHON="${PIPER_PYTHON:-python3}"
+PIPER_MODE="${PIPER_MODE:-http}"
+PIPER_HTTP_HOST="${PIPER_HTTP_HOST:-127.0.0.1}"
+PIPER_HTTP_PORT="${PIPER_HTTP_PORT:-5000}"
+PIPER_HTTP_VOICE="${PIPER_HTTP_VOICE:-}"
+SELECTION_SOURCE_MODE="${SELECTION_SOURCE_MODE:-primary-only}"
+SELECTION_RETRY_COUNT="${SELECTION_RETRY_COUNT:-3}"
+SELECTION_RETRY_DELAY_MS="${SELECTION_RETRY_DELAY_MS:-50}"
+TEMP_WAV_FILE=""
 
 usage() {
     cat <<'EOF'
@@ -21,6 +29,7 @@ Usage:
   speak --faster
   speak --slower
   speak --print-config
+  speak --check-server
 
 Options:
   --list-voices       List available Piper voices
@@ -28,6 +37,7 @@ Options:
   --faster            Persist a 0.1 faster speed step (lower length scale)
   --slower            Persist a 0.1 slower speed step (higher length scale)
   --print-config      Print the resolved runtime configuration
+  --check-server      Verify that the Piper HTTP server is reachable
   --speed SCALE       Override PIPER_LENGTH_SCALE for this run only
   --config FILE       Read configuration from a different env file
   -h, --help          Show this help text
@@ -50,6 +60,16 @@ load_config() {
     fi
 }
 
+normalize_config() {
+    PIPER_MODE="${PIPER_MODE:-http}"
+    PIPER_HTTP_HOST="${PIPER_HTTP_HOST:-127.0.0.1}"
+    PIPER_HTTP_PORT="${PIPER_HTTP_PORT:-5000}"
+    PIPER_HTTP_VOICE="${PIPER_HTTP_VOICE:-$PIPER_VOICE}"
+    SELECTION_SOURCE_MODE="${SELECTION_SOURCE_MODE:-primary-only}"
+    SELECTION_RETRY_COUNT="${SELECTION_RETRY_COUNT:-3}"
+    SELECTION_RETRY_DELAY_MS="${SELECTION_RETRY_DELAY_MS:-50}"
+}
+
 write_config() {
     mkdir -p "$(dirname "$CONFIG_FILE")"
     cat >"$CONFIG_FILE" <<EOF
@@ -57,6 +77,13 @@ PIPER_DATA_DIR="$PIPER_DATA_DIR"
 PIPER_VOICE="$PIPER_VOICE"
 PIPER_LENGTH_SCALE="$PIPER_LENGTH_SCALE"
 PIPER_PYTHON="$PIPER_PYTHON"
+PIPER_MODE="$PIPER_MODE"
+PIPER_HTTP_HOST="$PIPER_HTTP_HOST"
+PIPER_HTTP_PORT="$PIPER_HTTP_PORT"
+PIPER_HTTP_VOICE="$PIPER_HTTP_VOICE"
+SELECTION_SOURCE_MODE="$SELECTION_SOURCE_MODE"
+SELECTION_RETRY_COUNT="$SELECTION_RETRY_COUNT"
+SELECTION_RETRY_DELAY_MS="$SELECTION_RETRY_DELAY_MS"
 EOF
 }
 
@@ -75,21 +102,116 @@ require_piper_module() {
     fi
 }
 
+http_base_url() {
+    printf 'http://%s:%s' "$PIPER_HTTP_HOST" "$PIPER_HTTP_PORT"
+}
+
 print_config() {
     local model_file="${PIPER_DATA_DIR}/${PIPER_VOICE}.onnx"
 
+    case "$PIPER_MODE" in
+        cli|http) ;;
+        *)
+            die "Unsupported PIPER_MODE '${PIPER_MODE}'. Use 'cli' or 'http'."
+            ;;
+    esac
+
     printf 'CONFIG_FILE=%s\n' "$CONFIG_FILE"
+    printf 'PIPER_MODE=%s\n' "$PIPER_MODE"
     printf 'PIPER_DATA_DIR=%s\n' "$PIPER_DATA_DIR"
     printf 'PIPER_VOICE=%s\n' "$PIPER_VOICE"
+    printf 'PIPER_HTTP_VOICE=%s\n' "$PIPER_HTTP_VOICE"
+    printf 'PIPER_HTTP_HOST=%s\n' "$PIPER_HTTP_HOST"
+    printf 'PIPER_HTTP_PORT=%s\n' "$PIPER_HTTP_PORT"
+    printf 'PIPER_HTTP_URL=%s/\n' "$(http_base_url)"
     printf 'PIPER_LENGTH_SCALE=%s\n' "$PIPER_LENGTH_SCALE"
     printf 'PIPER_PYTHON=%s\n' "$PIPER_PYTHON"
     printf 'MODEL_FILE=%s\n' "$model_file"
 }
 
-list_voices() {
+validate_runtime_mode() {
+    case "$PIPER_MODE" in
+        cli|http)
+            ;;
+        *)
+            die "Unsupported PIPER_MODE '${PIPER_MODE}'. Use 'cli' or 'http'."
+            ;;
+    esac
+
+    if [ "$PIPER_MODE" = "http" ]; then
+        case "$PIPER_HTTP_HOST" in
+            127.0.0.1|localhost|::1)
+                return 0
+                ;;
+            *)
+                die "HTTP mode is local-only. Set PIPER_HTTP_HOST to 127.0.0.1, localhost, or ::1."
+                ;;
+        esac
+    fi
+
+    return 0
+}
+
+http_fail_message() {
+    local curl_status="$1"
+
+    case "$curl_status" in
+        7)
+            die "Unable to reach Piper HTTP server at $(http_base_url)/. Run 'piper-server start' or switch PIPER_MODE back to 'cli'."
+            ;;
+        22)
+            die "Piper HTTP server returned an error. Check 'piper-server logs' and confirm the requested voice is available."
+            ;;
+        *)
+            die "HTTP request to Piper failed with curl exit code ${curl_status}."
+            ;;
+    esac
+}
+
+check_http_server() {
+    local curl_status=0
+
+    require_command curl "curl is required for HTTP mode. Install curl and try again."
+
+    set +e
+    curl --silent --show-error --fail "$(http_base_url)/voices" >/dev/null
+    curl_status=$?
+    set -e
+    if [ "$curl_status" -ne 0 ]; then
+        http_fail_message "$curl_status"
+    fi
+}
+
+list_voices_http() {
+    local curl_status=0
+    local voices_json=""
+
+    require_command curl "curl is required for HTTP mode. Install curl and try again."
+
+    set +e
+    voices_json="$(curl --silent --show-error --fail "$(http_base_url)/voices")"
+    curl_status=$?
+    set -e
+    if [ "$curl_status" -ne 0 ]; then
+        http_fail_message "$curl_status"
+    fi
+
+    printf '%s\n' "$voices_json"
+}
+
+list_voices_cli() {
     require_command "$PIPER_PYTHON" "Python interpreter '${PIPER_PYTHON}' was not found."
     require_piper_module
     exec "$PIPER_PYTHON" -m piper.download_voices
+}
+
+list_voices() {
+    if [ "$PIPER_MODE" = "http" ]; then
+        list_voices_http
+        return 0
+    fi
+
+    list_voices_cli
 }
 
 set_voice() {
@@ -100,6 +222,7 @@ set_voice() {
     fi
 
     PIPER_VOICE="$new_voice"
+    PIPER_HTTP_VOICE="$new_voice"
     write_config
     printf 'Updated PIPER_VOICE in %s\n' "$CONFIG_FILE"
 }
@@ -140,6 +263,90 @@ trimmed_text() {
     printf '%s' "${raw_text//[$'\t\r\n ']/}"
 }
 
+render_http_payload() {
+    local text="$1"
+
+    require_command "$PIPER_PYTHON" "Python interpreter '${PIPER_PYTHON}' was not found."
+
+    "$PIPER_PYTHON" - "$text" "$PIPER_HTTP_VOICE" "$PIPER_LENGTH_SCALE" <<'PY'
+import json
+import sys
+
+text = sys.argv[1]
+voice = sys.argv[2]
+length_scale = float(sys.argv[3])
+
+payload = {
+    "text": text,
+    "length_scale": length_scale,
+}
+
+if voice:
+    payload["voice"] = voice
+
+print(json.dumps(payload))
+PY
+}
+
+synthesize_http() {
+    local text="$1"
+    local wav_file="$2"
+    local payload=""
+    local curl_status=0
+
+    require_command curl "curl is required for HTTP mode. Install curl and try again."
+
+    payload="$(render_http_payload "$text")"
+
+    set +e
+    curl \
+        --silent \
+        --show-error \
+        --fail \
+        -H 'Content-Type: application/json' \
+        -X POST \
+        --data-binary "$payload" \
+        -o "$wav_file" \
+        "$(http_base_url)/"
+    curl_status=$?
+    set -e
+    if [ "$curl_status" -ne 0 ]; then
+        http_fail_message "$curl_status"
+    fi
+}
+
+synthesize_cli() {
+    local text="$1"
+    local wav_file="$2"
+    local model_file="${PIPER_DATA_DIR}/${PIPER_VOICE}.onnx"
+    local model_config_file="${model_file}.json"
+
+    require_command "$PIPER_PYTHON" "Python interpreter '${PIPER_PYTHON}' was not found."
+    require_piper_module
+
+    [ -f "$model_file" ] || die "Voice model not found at ${model_file}. Run './install.sh --voice ${PIPER_VOICE}' or 'speak --list-voices'."
+    [ -f "$model_config_file" ] || die "Voice config not found at ${model_config_file}. Re-download the voice with './install.sh --voice ${PIPER_VOICE}'."
+
+    if ! "$PIPER_PYTHON" -m piper \
+        --data-dir "$PIPER_DATA_DIR" \
+        -m "$model_file" \
+        -f "$wav_file" \
+        --length-scale "$PIPER_LENGTH_SCALE" \
+        -- "$text"; then
+        die "Piper synthesis failed."
+    fi
+}
+
+play_wav() {
+    local wav_file="$1"
+
+    require_command ffplay "ffplay is required. Install ffmpeg and try again."
+
+    if ! ffplay -nodisp -autoexit -hide_banner -loglevel error "$wav_file" >/dev/null 2>&1; then
+        die "ffplay failed to play ${wav_file}. Check your audio output and ffmpeg installation."
+    fi
+}
+
 main() {
     local mode="speak"
     local set_voice_value=""
@@ -147,10 +354,9 @@ main() {
     local text=""
     local wav_file=""
     local cleaned_text=""
-    local model_file=""
-    local model_config_file=""
 
     load_config
+    normalize_config
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -176,6 +382,10 @@ main() {
                 mode="print-config"
                 shift
                 ;;
+            --check-server)
+                mode="check-server"
+                shift
+                ;;
             --speed)
                 [ "$#" -ge 2 ] || die "--speed requires a numeric value."
                 runtime_speed="$2"
@@ -185,6 +395,7 @@ main() {
                 [ "$#" -ge 2 ] || die "--config requires a file path."
                 CONFIG_FILE="$2"
                 load_config
+                normalize_config
                 shift 2
                 ;;
             -h|--help)
@@ -208,9 +419,12 @@ main() {
         PIPER_LENGTH_SCALE="$runtime_speed"
     fi
 
+    validate_runtime_mode
+
     case "$mode" in
         list-voices)
             list_voices
+            exit 0
             ;;
         set-voice)
             set_voice "$set_voice_value"
@@ -228,6 +442,16 @@ main() {
             print_config
             exit 0
             ;;
+        check-server)
+            if [ "$PIPER_MODE" != "http" ]; then
+                printf 'PIPER_MODE=%s does not require an HTTP server.\n' "$PIPER_MODE"
+                exit 0
+            fi
+
+            check_http_server
+            printf 'Piper HTTP server is reachable at %s/\n' "$(http_base_url)"
+            exit 0
+            ;;
     esac
 
     if [ "$#" -gt 0 ]; then
@@ -242,31 +466,17 @@ main() {
     cleaned_text="$(trimmed_text "$text")"
     [ -n "$cleaned_text" ] || die "No text was provided."
 
-    require_command "$PIPER_PYTHON" "Python interpreter '${PIPER_PYTHON}' was not found."
-    require_piper_module
-    require_command ffplay "ffplay is required. Install ffmpeg and try again."
-
-    model_file="${PIPER_DATA_DIR}/${PIPER_VOICE}.onnx"
-    model_config_file="${model_file}.json"
-
-    [ -f "$model_file" ] || die "Voice model not found at ${model_file}. Run './install.sh --voice ${PIPER_VOICE}' or 'speak --list-voices'."
-    [ -f "$model_config_file" ] || die "Voice config not found at ${model_config_file}. Re-download the voice with './install.sh --voice ${PIPER_VOICE}'."
-
     wav_file="$(mktemp "${TMPDIR:-/tmp}/piper-speak.XXXXXX.wav")"
-    trap 'rm -f "$wav_file"' EXIT
+    TEMP_WAV_FILE="$wav_file"
+    trap 'rm -f -- "${TEMP_WAV_FILE:-}"' EXIT
 
-    if ! "$PIPER_PYTHON" -m piper \
-        --data-dir "$PIPER_DATA_DIR" \
-        -m "$model_file" \
-        -f "$wav_file" \
-        --length-scale "$PIPER_LENGTH_SCALE" \
-        -- "$text"; then
-        die "Piper synthesis failed."
+    if [ "$PIPER_MODE" = "http" ]; then
+        synthesize_http "$text" "$wav_file"
+    else
+        synthesize_cli "$text" "$wav_file"
     fi
 
-    if ! ffplay -nodisp -autoexit -hide_banner -loglevel error "$wav_file" >/dev/null 2>&1; then
-        die "ffplay failed to play ${wav_file}. Check your audio output and ffmpeg installation."
-    fi
+    play_wav "$wav_file"
 }
 
 main "$@"

@@ -5,6 +5,13 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly DEFAULT_SPEAK_BIN="${SCRIPT_DIR}/speak"
 readonly DEFAULT_DETECT_BIN="${SCRIPT_DIR}/detect-selection.sh"
+readonly DEFAULT_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/piper-speak"
+readonly DEFAULT_CONFIG_FILE="${DEFAULT_CONFIG_DIR}/config.env"
+
+CONFIG_FILE="${PIPER_SPEAK_CONFIG:-$DEFAULT_CONFIG_FILE}"
+SELECTION_SOURCE_MODE="${SELECTION_SOURCE_MODE:-primary-only}"
+SELECTION_RETRY_COUNT="${SELECTION_RETRY_COUNT:-3}"
+SELECTION_RETRY_DELAY_MS="${SELECTION_RETRY_DELAY_MS:-50}"
 
 usage() {
     cat <<'EOF'
@@ -12,11 +19,18 @@ Usage:
   speak-selection
   speak-selection --debug
   speak-selection --window
+  speak-selection --prefer-primary
+  speak-selection --prefer-clipboard
+  speak-selection --primary-only
+  speak-selection --clipboard-only
 
 Options:
   --debug              Print the captured text and run in the foreground
   --window             Open a terminal window, print the captured text, and speak in the foreground
   --window-from-file   Internal helper used by --window
+  --config FILE        Read configuration from a different env file
+  --retry-count COUNT  Number of primary-selection attempts
+  --retry-delay-ms MS  Delay between primary retries in milliseconds
   -h, --help           Show this help text
 EOF
 }
@@ -24,6 +38,26 @@ EOF
 die() {
     printf 'Error: %s\n' "$*" >&2
     exit 1
+}
+
+load_config() {
+    if [ -f "$CONFIG_FILE" ]; then
+        # shellcheck disable=SC1090
+        source "$CONFIG_FILE"
+    fi
+}
+
+have_detect_arg() {
+    local expected_arg="$1"
+    local detect_arg=""
+
+    for detect_arg in "${DETECT_ARGS[@]}"; do
+        if [ "$detect_arg" = "$expected_arg" ]; then
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 find_speak_bin() {
@@ -125,15 +159,43 @@ window_command() {
     return 1
 }
 
+run_speak_foreground() {
+    local speak_bin="$1"
+    local selected_text="$2"
+    local window_file="$3"
+
+    if [ -n "$window_file" ]; then
+        printf 'Speak Select Reading Window:\n%s\n' "$selected_text" >&2
+    else
+        printf 'Selected text:\n%s\n' "$selected_text" >&2
+    fi
+
+    exec "$speak_bin" "$selected_text"
+}
+
+launch_speak_background() {
+    local speak_bin="$1"
+    local selected_text="$2"
+
+    if command -v nohup >/dev/null 2>&1; then
+        nohup "$speak_bin" "$selected_text" >/dev/null 2>&1 &
+    else
+        "$speak_bin" "$selected_text" >/dev/null 2>&1 &
+    fi
+}
+
 main() {
     local debug_mode=0
     local window_mode=0
     local speak_bin=""
     local detect_bin=""
     local selected_text=""
-    local detect_args=()
     local window_file=""
     local text_file=""
+
+    DETECT_ARGS=()
+
+    load_config
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -150,6 +212,21 @@ main() {
                 window_file="$2"
                 shift 2
                 ;;
+            --config)
+                [ "$#" -ge 2 ] || die "--config requires a file path."
+                CONFIG_FILE="$2"
+                load_config
+                shift 2
+                ;;
+            --prefer-primary|--prefer-clipboard|--primary-only|--clipboard-only)
+                DETECT_ARGS+=("$1")
+                shift
+                ;;
+            --retry-count|--retry-delay-ms)
+                [ "$#" -ge 2 ] || die "$1 requires a value."
+                DETECT_ARGS+=("$1" "$2")
+                shift 2
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -163,8 +240,23 @@ main() {
     speak_bin="$(find_speak_bin)" || die "Unable to find the installed 'speak' command."
     detect_bin="$(find_detect_bin)" || die "Unable to find detect-selection.sh."
 
+    if ! have_detect_arg "--retry-count"; then
+        DETECT_ARGS+=(--retry-count "$SELECTION_RETRY_COUNT")
+    fi
+
+    if ! have_detect_arg "--retry-delay-ms"; then
+        DETECT_ARGS+=(--retry-delay-ms "$SELECTION_RETRY_DELAY_MS")
+    fi
+
+    if ! have_detect_arg "--prefer-primary" \
+        && ! have_detect_arg "--prefer-clipboard" \
+        && ! have_detect_arg "--primary-only" \
+        && ! have_detect_arg "--clipboard-only"; then
+        DETECT_ARGS+=(--selection-mode "$SELECTION_SOURCE_MODE")
+    fi
+
     if [ "$debug_mode" -eq 1 ]; then
-        detect_args=(--debug)
+        DETECT_ARGS=(--debug "${DETECT_ARGS[@]}")
     fi
 
     if [ -n "$window_file" ]; then
@@ -172,7 +264,7 @@ main() {
         selected_text="$(cat "$window_file")"
         rm -f "$window_file"
     else
-        selected_text="$("$detect_bin" "${detect_args[@]}")"
+        selected_text="$("$detect_bin" "${DETECT_ARGS[@]}")"
     fi
 
     [ -n "${selected_text//[$'\t\r\n ']/}" ] || die "No selected text was found."
@@ -188,19 +280,10 @@ main() {
     fi
 
     if [ "$debug_mode" -eq 1 ] || [ -n "$window_file" ]; then
-        if [ -n "$window_file" ]; then
-            printf 'Speak Select Reading Window:\n%s\n' "$selected_text" >&2
-        else
-            printf 'Selected text:\n%s\n' "$selected_text" >&2
-        fi
-        exec "$speak_bin" "$selected_text"
+        run_speak_foreground "$speak_bin" "$selected_text" "$window_file"
     fi
 
-    if command -v nohup >/dev/null 2>&1; then
-        nohup "$speak_bin" "$selected_text" >/dev/null 2>&1 &
-    else
-        "$speak_bin" "$selected_text" >/dev/null 2>&1 &
-    fi
+    launch_speak_background "$speak_bin" "$selected_text"
 }
 
 main "$@"
