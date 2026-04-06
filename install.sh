@@ -146,7 +146,7 @@ install_python_packages() {
     log "Installing Piper Python packages with ${PYTHON_BIN}."
     pip_log="$(mktemp "${TMPDIR:-/tmp}/piper-speak-pip.XXXXXX.log")"
 
-    if "$PYTHON_BIN" -m pip install "${install_args[@]}" --upgrade piper-tts pathvalidate >"$pip_log" 2>&1; then
+    if "$PYTHON_BIN" -m pip install "${install_args[@]}" --upgrade 'piper-tts[http]' pathvalidate >"$pip_log" 2>&1; then
         rm -f "$pip_log"
         return 0
     fi
@@ -155,7 +155,7 @@ install_python_packages() {
 
     if grep -Eq 'externally-managed-environment|externally managed' "$pip_log"; then
         warn "Detected an externally managed Python environment. Retrying with --break-system-packages."
-        if "$PYTHON_BIN" -m pip install "${install_args[@]}" --break-system-packages --upgrade piper-tts pathvalidate; then
+        if "$PYTHON_BIN" -m pip install "${install_args[@]}" --break-system-packages --upgrade 'piper-tts[http]' pathvalidate; then
             rm -f "$pip_log"
             return 0
         fi
@@ -195,6 +195,7 @@ render_config() {
         -e "s|^PIPER_VOICE=.*$|PIPER_VOICE=\"${VOICE}\"|" \
         -e "s|^PIPER_LENGTH_SCALE=.*$|PIPER_LENGTH_SCALE=\"${SPEED}\"|" \
         -e "s|^PIPER_PYTHON=.*$|PIPER_PYTHON=\"${PYTHON_BIN}\"|" \
+        -e "s|^PIPER_HTTP_VOICE=.*$|PIPER_HTTP_VOICE=\"${VOICE}\"|" \
         "$EXAMPLE_CONFIG" >"$CONFIG_FILE"
 
     log "Wrote config to ${CONFIG_FILE}."
@@ -206,6 +207,7 @@ install_scripts() {
     install -m 0755 "${REPO_DIR}/bin/speak" "${INSTALL_BIN_DIR}/speak"
     install -m 0755 "${REPO_DIR}/bin/speak-selection" "${INSTALL_BIN_DIR}/speak-selection"
     install -m 0755 "${REPO_DIR}/bin/speak-selection-debug" "${INSTALL_BIN_DIR}/speak-selection-debug"
+    install -m 0755 "${REPO_DIR}/bin/piper-server" "${INSTALL_BIN_DIR}/piper-server"
     install -m 0755 "${REPO_DIR}/scripts/detect-selection.sh" "${INSTALL_BIN_DIR}/detect-selection.sh"
     install -m 0755 "${REPO_DIR}/scripts/test-voice.sh" "${INSTALL_BIN_DIR}/test-voice.sh"
     install -m 0755 "${REPO_DIR}/scripts/print-shortcut-instructions.sh" "${INSTALL_BIN_DIR}/print-shortcut-instructions.sh"
