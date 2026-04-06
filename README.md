@@ -4,18 +4,25 @@
   <img src="./speakselect_logo.webp" alt="SpeakSelect logo" width="220">
 </p>
 
-SpeakSelect packages the [Piper CLI](https://github.com/OHF-Voice/piper1-gpl) into two small Linux-first commands:
+SpeakSelect packages Piper into a small Linux-first speech workflow with:
 
 - `speak "hello world"`
 - `speak-selection`
+- `piper-server`
 
-The project stays CLI-based. It does not run a Piper server, does not depend on shell functions in `~/.bashrc`, and keeps the important logic in readable Bash scripts that you can copy to another machine if you prefer manual installation.
+The project now supports two runtime modes:
+
+- `cli`: direct per-run Piper invocation
+- `http`: a local Piper HTTP server with a thin `speak` client
+
+The scripts remain readable Bash entrypoints that do not depend on shell functions in `~/.bashrc`.
 
 ## Features
 
 - One-command install with `./install.sh`
-- Standalone `speak` command for direct text or stdin
+- Standalone `speak` command for direct text or stdin in either CLI or HTTP mode
 - Standalone `speak-selection` command for highlighted text on Wayland or X11
+- `piper-server` lifecycle helper for the local Piper HTTP server
 - Dedicated `speak-selection-debug` helper for visible terminal troubleshooting
 - Config file at `~/.config/piper-speak/config.env`
 - Default voice set to `en_GB-southern_english_female-low`
@@ -31,6 +38,8 @@ speak --list-voices
 speak --faster
 speak --slower
 speak --set-voice en_US-lessac-medium
+speak --check-server
+piper-server start
 speak-selection --debug
 speak-selection-debug
 ```
@@ -50,7 +59,7 @@ SpeakSelect is intentionally small, but the full system still depends on a few p
 This repository installs Piper from PyPI with:
 
 ```bash
-python3 -m pip install piper-tts pathvalidate
+python3 -m pip install 'piper-tts[http]' pathvalidate
 ```
 
 It then downloads a voice with Piper's documented downloader.
@@ -89,7 +98,7 @@ sudo apt-get install -y ffmpeg xclip wl-clipboard
 2. Install Piper:
 
 ```bash
-python3 -m pip install --user --upgrade piper-tts pathvalidate
+python3 -m pip install --user --upgrade 'piper-tts[http]' pathvalidate
 ```
 
 3. Download the default voice:
@@ -103,6 +112,7 @@ python3 -m piper.download_voices --data-dir "$HOME/.local/share/piper" en_GB-sou
 ```bash
 mkdir -p "$HOME/.local/bin"
 install -m 0755 bin/speak "$HOME/.local/bin/speak"
+install -m 0755 bin/piper-server "$HOME/.local/bin/piper-server"
 install -m 0755 bin/speak-selection "$HOME/.local/bin/speak-selection"
 install -m 0755 bin/speak-selection-debug "$HOME/.local/bin/speak-selection-debug"
 install -m 0755 scripts/detect-selection.sh "$HOME/.local/bin/detect-selection.sh"
@@ -132,6 +142,10 @@ PIPER_DATA_DIR="$HOME/.local/share/piper"
 PIPER_VOICE="en_GB-southern_english_female-low"
 PIPER_LENGTH_SCALE="1.0"
 PIPER_PYTHON="python3"
+PIPER_MODE="cli"
+PIPER_HTTP_HOST="127.0.0.1"
+PIPER_HTTP_PORT="5000"
+PIPER_HTTP_VOICE="en_GB-southern_english_female-low"
 ```
 
 Useful commands:
@@ -141,8 +155,24 @@ Useful commands:
 - `speak --faster`
 - `speak --slower`
 - `speak --set-voice en_US-lessac-medium`
+- `speak --check-server`
+- `piper-server start`
+- `piper-server status`
+- `piper-server stop`
 
 `--faster` reduces `PIPER_LENGTH_SCALE` by `0.1` and saves it back to `~/.config/piper-speak/config.env`. `--slower` increases it by `0.1` and also saves it. For example, `1.0` becomes `0.9` after `speak --faster`, and `1.0` becomes `1.1` after `speak --slower`.
+
+To enable the local server/client model, set:
+
+```bash
+PIPER_MODE="http"
+```
+
+Then start the server:
+
+```bash
+piper-server start
+```
 
 More detail: [docs/configuration.md](/home/pip/AAA_Builds/speakselect/docs/configuration.md)
 
@@ -196,7 +226,8 @@ Common issues are documented in [docs/troubleshooting.md](/home/pip/AAA_Builds/s
 
 The short version:
 
-- If `speak` says Piper is missing, run `python3 -m pip install --user --upgrade piper-tts pathvalidate`
+- If `speak` says Piper is missing, run `python3 -m pip install --user --upgrade 'piper-tts[http]' pathvalidate`
+- If `speak --check-server` fails in HTTP mode, run `piper-server start`
 - If playback fails, make sure `ffplay` exists
 - If `speak-selection` is silent, try `speak-selection --debug`
 - If you want a visible debug window, run `speak-selection-debug`
@@ -222,7 +253,7 @@ Also remove config and the current voice:
 SpeakSelect is a thin wrapper around the upstream Piper project and the tooling around it. This repo was made possible by:
 
 - [OHF-Voice/piper1-gpl](https://github.com/OHF-Voice/piper1-gpl), the upstream Piper engine and CLI
-- The Piper voice catalog and downloader exposed by `python3 -m piper.download_voices`
+- The Piper voice catalog, downloader, and HTTP server exposed by Piper
 - `ffmpeg`/`ffplay`, `wl-clipboard`, and `xclip`
 
 Upstream Piper is licensed under GPL-3.0. This repository does not bundle Piper source code; it installs Piper separately as a dependency. The SpeakSelect wrapper code in this repository is licensed under MIT. If you redistribute Piper itself, bundled binaries, or voice files, review the upstream licenses carefully.
