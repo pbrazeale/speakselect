@@ -73,6 +73,16 @@ Stop the server:
 piper-server stop
 ```
 
+## Config Migration
+
+If you rerun `./install.sh` on top of an older config, SpeakSelect now:
+
+- preserves existing values already present in `config.env`
+- appends any missing settings required by newer versions
+- writes a backup to `config.env.bak` before modifying the file
+
+That means older installs can pick up HTTP and selection-policy settings without losing customized voice or speed values.
+
 ## Selection Capture Policy
 
 The default selection mode is:
