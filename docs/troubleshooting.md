@@ -60,6 +60,13 @@ Then open a new shell or source your profile.
 - Inspect the current state with `piper-server status`
 - Read recent server logs with `piper-server logs`
 
+## Local-Only HTTP Mode
+
+- SpeakSelect is intended to run the Piper HTTP server on the same machine only
+- Keep `PIPER_HTTP_HOST` set to `127.0.0.1`, `localhost`, or `::1`
+- Do not bind the server to `0.0.0.0` or another external interface
+- You do not need to open firewall ports for the local workflow
+
 ## HTTP Connection Errors
 
 - Confirm `PIPER_HTTP_HOST` and `PIPER_HTTP_PORT` in `~/.config/piper-speak/config.env`
@@ -71,7 +78,7 @@ Then open a new shell or source your profile.
 
 - Rerun `./install.sh` to append any missing config keys for newer versions
 - Check `~/.config/piper-speak/config.env.bak` if you need to compare pre-migration settings
-- Fresh installs stay on `PIPER_MODE="cli"` by default, so switch to `PIPER_MODE="http"` explicitly if you want the local server/client path
+- Fresh installs now default to `PIPER_MODE="http"` for the local server/client path
 - `systemd --user` service files are not installed yet in this phase; manage the server manually with `piper-server start` and `piper-server stop`
 
 ## Wayland Selection Issues
@@ -92,4 +99,4 @@ Then open a new shell or source your profile.
 
 ## Slow Startup
 
-CLI mode loads the model on each run. If you want to avoid that repeated startup cost, switch to `PIPER_MODE="http"` and run the local Piper server with `piper-server start`.
+CLI mode loads the model on each run. The default local workflow uses `PIPER_MODE="http"` with `piper-server start`. Switch back to `PIPER_MODE="cli"` only if you prefer the older per-run behavior.
