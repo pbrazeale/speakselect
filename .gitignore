@@ -13,3 +13,7 @@ __pycache__/
 .envrc
 test.md
 Dockerfile.ubuntu-latest
+.codex
+AGENTS.md
+/todo/
+/tests/
