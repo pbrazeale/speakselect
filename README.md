@@ -10,7 +10,15 @@ SpeakSelect packages Piper into a small Linux-first speech workflow with:
 - `speak-selection`
 - `piper-server`
 
-The project now supports two runtime modes:
+The default runtime is now a local client/server model on the same machine:
+
+- `piper-server` starts a Piper HTTP server on `127.0.0.1:5000` by default
+- `speak` sends synthesis requests to that local server
+- `speak-selection` captures highlighted text and forwards it through `speak`
+
+No remote clients are involved in the intended setup. SpeakSelect does not need public ports, firewall changes, or another computer streaming audio back to this one.
+
+The project still supports two runtime modes:
 
 - `http`: a local Piper HTTP server with a thin `speak` client on loopback only
 - `cli`: direct per-run Piper invocation as a compatibility fallback
@@ -22,12 +30,30 @@ The scripts remain readable Bash entrypoints that do not depend on shell functio
 - One-command install with `./install.sh`
 - Standalone `speak` command for direct text or stdin in local HTTP mode or CLI fallback mode
 - Standalone `speak-selection` command for highlighted text on Wayland or X11
-- `piper-server` lifecycle helper for the local Piper HTTP server on `127.0.0.1`
+- `piper-server` lifecycle helper for the local Piper HTTP server on `127.0.0.1:5000` by default
 - Dedicated `speak-selection-debug` helper for visible terminal troubleshooting
 - Config file at `~/.config/piper-speak/config.env`
 - Default voice set to `en_GB-southern_english_female-low`
 - WAV output plus `ffplay` playback for predictable local audio
 - Helper commands for testing, voice listing, and keyboard shortcut setup
+
+## How It Works
+
+Normal local flow:
+
+1. `piper-server start` launches Piper's HTTP server on `127.0.0.1:5000` unless you change the local config.
+2. `speak "hello"` sends text to that local endpoint.
+3. Piper returns WAV audio.
+4. SpeakSelect plays the WAV locally with `ffplay`.
+
+Selection flow:
+
+1. You highlight text in an app.
+2. `speak-selection` reads the primary selection.
+3. The text is passed to `speak`.
+4. `speak` sends it to the local Piper server and plays the result.
+
+The default selection mode is `primary-only`, so SpeakSelect no longer silently falls back to stale clipboard text unless you explicitly opt into that behavior.
 
 ## Demo Usage
 
@@ -78,6 +104,7 @@ Then test it:
 
 ```bash
 piper-server start
+speak --check-server
 speak "hello"
 ```
 
@@ -152,6 +179,7 @@ PIPER_MODE="http"
 PIPER_HTTP_HOST="127.0.0.1"
 PIPER_HTTP_PORT="5000"
 PIPER_HTTP_VOICE="en_GB-southern_english_female-low"
+SELECTION_SOURCE_MODE="primary-only"
 ```
 
 Useful commands:
@@ -174,7 +202,26 @@ The default local workflow uses:
 PIPER_MODE="http"
 ```
 
-This server is intended for the same machine only. SpeakSelect keeps it on loopback, so you do not need to open firewall rules or expose it to other computers.
+With the default config, SpeakSelect binds Piper to:
+
+```text
+127.0.0.1:5000
+```
+
+That means:
+
+- only the same machine can connect to it
+- you do not need to open firewall rules
+- you should not bind it to `0.0.0.0`
+- it is not intended to stream results to another computer
+
+If you want to change the port locally, edit:
+
+```bash
+PIPER_HTTP_PORT="5000"
+```
+
+in `~/.config/piper-speak/config.env` and restart the server.
 
 Then start the server:
 
@@ -191,6 +238,24 @@ PIPER_MODE="cli"
 SpeakSelect does not install a `systemd --user` service yet. In this phase, server startup remains a manual `piper-server start` and `piper-server stop` workflow.
 
 More detail: [docs/configuration.md](/home/pip/AAA_Builds/speakselect/docs/configuration.md)
+
+## Local Server Commands
+
+Use these to manage the local Piper process:
+
+```bash
+piper-server start
+piper-server status
+piper-server logs
+piper-server stop
+```
+
+Useful checks:
+
+```bash
+speak --check-server
+speak --print-config
+```
 
 ## Voice Switching
 
@@ -244,7 +309,7 @@ The short version:
 
 - If `speak` says Piper is missing, run `python3 -m pip install --user --upgrade 'piper-tts[http]' pathvalidate`
 - If `speak --check-server` fails in HTTP mode, run `piper-server start`
-- The local HTTP server is loopback-only and not intended for remote streaming or exposed ports
+- The local HTTP server binds to `127.0.0.1:5000` by default and is not intended for remote streaming or exposed ports
 - If playback fails, make sure `ffplay` exists
 - If `speak-selection` is silent, try `speak-selection --debug`
 - If you want a visible debug window, run `speak-selection-debug`
