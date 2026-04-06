@@ -35,9 +35,11 @@ command -v speak-selection
 
 ## X11 vs Wayland
 
-- On X11, `speak-selection` reads the primary selection with `xclip` and falls back to the clipboard
-- On Wayland, it uses `wl-paste --primary` first and then falls back to the clipboard
-- Some Wayland apps and compositors do not expose the primary selection consistently; if nothing is read, copy the text to the clipboard and try again
+- On X11, `speak-selection` reads the primary selection with `xclip`
+- On Wayland, it uses `wl-paste --primary`
+- The default mode is `primary-only`, so the shortcut now fails clearly if highlighted text is unavailable instead of silently reading clipboard text
+- If you want clipboard fallback, set `SELECTION_SOURCE_MODE="prefer-primary"` in your config or bind a mode-specific command such as `speak-selection --prefer-primary`
+- Some Wayland apps and compositors do not expose the primary selection consistently; use `speak-selection --debug` to see the exact source that was used
 
 ## Debugging a Silent Shortcut
 
@@ -46,6 +48,8 @@ Run this in a terminal:
 ```bash
 speak-selection --debug
 ```
+
+The debug output now includes the exact selection source, such as `wayland-primary` or `x11-primary`.
 
 If that works, the command is installed correctly and the remaining issue is usually desktop shortcut configuration or selection access.
 
